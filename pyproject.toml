@@ -1,0 +1,21 @@
+[project]
+name = "vlm-caption"
+version = "0.1.0"
+description = "Vision Language Model for Image Captioning"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "torch",
+    "torchvision",
+    "transformers",
+    "pillow",
+    "nltk",
+    "tqdm",
+    "numpy",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+
