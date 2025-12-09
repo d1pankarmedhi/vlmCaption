@@ -4,6 +4,9 @@
 
 A Visual Language Model for Image Captioning using ViT (Vision Transformer) and GPT-2.
 
+<img width="400" alt="image" src="https://github.com/user-attachments/assets/f0c3d285-5ca8-4313-841a-717382ef4800" />
+<p>Fig: Model Architecture</p>
+
 </div>
 
 ## Getting Started
@@ -94,3 +97,5 @@ python main.py infer --image_path data/image.jpg --checkpoint_path checkpoints/l
     <td><b>Generated Caption:</b> The golden retriever is carrying a yellow ball in its mouth as he bounds towards it .</td>
 </tr>
 </table>
+
+> Download the latest checkpoint from releases: [latest_checkpoint.pth](https://github.com/d1pankarmedhi/vlmCaption/releases/tag/v1.0.0)
