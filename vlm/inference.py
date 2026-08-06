@@ -2,7 +2,7 @@ import torch
 from PIL import Image
 from .data import get_transforms
 
-def generate_caption(model, image_path, device, max_length=50, temperature=0.7):
+def generate_caption(model, image_path, device, max_length=50, temperature=0.7, use_cache=True):
     """
     Generate a caption for a single image file.
     """
@@ -25,6 +25,7 @@ def generate_caption(model, image_path, device, max_length=50, temperature=0.7):
         image_tensor, 
         max_length=max_length, 
         temperature=temperature, 
+        use_cache=use_cache
     )
     
     return caption

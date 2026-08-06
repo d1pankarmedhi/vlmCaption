@@ -44,16 +44,16 @@ def count_parameters(model):
 
 def save_checkpoint(state, filename):
     """Save training checkpoint."""
-    print(f"💾 Saving checkpoint to {filename}")
+    print(f"[*] Saving checkpoint to {filename}")
     torch.save(state, filename)
 
 def load_checkpoint(filename, model, optimizer=None, scaler=None, scheduler=None, device='cpu'):
     """Load training checkpoint."""
     if not os.path.exists(filename):
-        print(f"📂 No checkpoint found at {filename}")
+        print(f"[-] No checkpoint found at {filename}")
         return None
         
-    print(f"📂 Loading checkpoint from {filename}")
+    print(f"[*] Loading checkpoint from {filename}")
     checkpoint = torch.load(filename, map_location=device)
     
     if model:

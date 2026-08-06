@@ -17,7 +17,36 @@ def train_command(args):
     """
     set_seed(args.seed)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(f"\nUsing device: {device}")
+    
+    # Mixed precision setup
+    mp_mode = getattr(args, 'mixed_precision', Config.MIXED_PRECISION).lower()
+    use_amp = (device.type == 'cuda') and (mp_mode != 'no')
+    amp_dtype = torch.float16
+
+    if mp_mode == 'bf16':
+        if torch.cuda.is_available() and torch.cuda.is_bf16_supported():
+            amp_dtype = torch.bfloat16
+        else:
+            print("[!] BFloat16 is not supported on this GPU. Falling back to FP16.")
+            mp_mode = 'fp16'
+            amp_dtype = torch.float16
+    elif mp_mode == 'fp16':
+        amp_dtype = torch.float16
+    
+    print("\n=================== Device & System Info ===================")
+    print(f"CUDA Available : {torch.cuda.is_available()}")
+    if torch.cuda.is_available():
+        print(f"Device         : {device}")
+        print(f"Device Name    : {torch.cuda.get_device_name(0)}")
+        print(f"Device Count   : {torch.cuda.device_count()}")
+        print(f"CUDA Version   : {torch.version.cuda}")
+        total_mem = torch.cuda.get_device_properties(0).total_memory / (1024 ** 3)
+        print(f"VRAM           : {total_mem:.2f} GB")
+        print(f"Mixed Precision: {mp_mode.upper() if use_amp else 'Disabled'}")
+    else:
+        print("Device         : CPU (CUDA not available)")
+        print("Mixed Precision: Disabled")
+    print("===========================================================\n")
     
     # tokenizer
     tokenizer = GPT2Tokenizer.from_pretrained(Config.GPT2_MODEL_NAME)
@@ -59,7 +88,8 @@ def train_command(args):
     print(f"\nModel Parameters: {count_parameters(model):,}")
     optimizer = torch.optim.AdamW(filter(lambda p: p.requires_grad, model.parameters()), lr=args.lr)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
-    scaler = GradScaler(enabled=(device.type == 'cuda'))
+    scaler_enabled = use_amp and (amp_dtype == torch.float16)
+    scaler = GradScaler('cuda', enabled=scaler_enabled)
     
     # Resume training from checkpoint
     start_epoch = 1
@@ -77,7 +107,11 @@ def train_command(args):
         os.makedirs(Config.CHECKPOINT_DIR)
 
     for epoch in range(start_epoch, args.epochs + 1):
-        loss = train_epoch(model, train_loader, optimizer, device, epoch, scaler, Config.GRAD_ACCUM_STEPS, Config.MAX_GRAD_NORM)
+        loss = train_epoch(
+            model, train_loader, optimizer, device, epoch, scaler, 
+            Config.GRAD_ACCUM_STEPS, Config.MAX_GRAD_NORM, 
+            amp_dtype=amp_dtype, use_amp=use_amp
+        )
         print(f"Epoch {epoch} Loss: {loss:.4f}")
         
         # Evaluate on validation set
@@ -120,7 +154,8 @@ def infer_command(args):
     model = model.to(device)
     
     print(f"\nGenerating caption for {args.image_path}...")
-    caption = generate_caption(model, args.image_path, device)
+    use_cache = not args.disable_cache
+    caption = generate_caption(model, args.image_path, device, use_cache=use_cache)
     
     print(f"\nCaption: {caption}\n")
 
@@ -137,6 +172,7 @@ def main():
     train_parser.add_argument('--lr', type=float, default=Config.LEARNING_RATE)
     train_parser.add_argument('--seed', type=int, default=Config.SEED)
     train_parser.add_argument('--num_workers', type=int, default=0, help='Number of dataloader workers')
+    train_parser.add_argument('--mixed_precision', type=str, choices=['no', 'fp16', 'bf16'], default=Config.MIXED_PRECISION, help='Mixed precision training mode (no, fp16, bf16)')
     train_parser.add_argument('--resume', action='store_true', help='Resume from latest checkpoint')
     train_parser.add_argument('--checkpoint_path', type=str, help='Specific checkpoint to resume from')
 
@@ -144,6 +180,7 @@ def main():
     infer_parser = subparsers.add_parser('infer', help='Generate caption for an image')
     infer_parser.add_argument('--image_path', type=str, required=True, help='Path to image file')
     infer_parser.add_argument('--checkpoint_path', type=str, help='Path to model checkpoint')
+    infer_parser.add_argument('--disable_cache', action='store_true', help='Disable KV caching during generation')
 
     args = parser.parse_args()
     

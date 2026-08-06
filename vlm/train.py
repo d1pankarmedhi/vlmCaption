@@ -2,7 +2,7 @@ import torch
 from tqdm import tqdm
 from .utils import save_checkpoint, compute_bleu_scores
 
-def train_epoch(model, dataloader, optimizer, device, epoch, scaler, grad_accum_steps=1, max_grad_norm=1.0):
+def train_epoch(model, dataloader, optimizer, device, epoch, scaler, grad_accum_steps=1, max_grad_norm=1.0, amp_dtype=torch.float16, use_amp=True):
     model.train()
     total_loss = 0
     progress_bar = tqdm(dataloader, desc=f"Training Epoch {epoch}")
@@ -14,20 +14,27 @@ def train_epoch(model, dataloader, optimizer, device, epoch, scaler, grad_accum_
         input_ids = batch['input_ids'].to(device)
         attention_mask = batch['attention_mask'].to(device)
         
-        # AMP Context
-        with torch.amp.autocast(enabled=True): 
-            outputs = model(images, input_ids, attention_mask)
-            loss = outputs.loss / grad_accum_steps
+        # Automatic Mixed Precision (AMP) Context
+        with torch.amp.autocast(device_type=device.type, dtype=amp_dtype, enabled=use_amp): 
+            outputs = model(images, input_ids, attention_mask, labels=input_ids)
+            loss = outputs['loss'] / grad_accum_steps
             
-        # Backward
-        scaler.scale(loss).backward()
+        # Backward pass
+        if scaler is not None and scaler.is_enabled():
+            scaler.scale(loss).backward()
+        else:
+            loss.backward()
         
         if (step + 1) % grad_accum_steps == 0:
-            scaler.unscale_(optimizer)
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
-            
-            scaler.step(optimizer)
-            scaler.update()
+            if scaler is not None and scaler.is_enabled():
+                scaler.unscale_(optimizer)
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
+                scaler.step(optimizer)
+                scaler.update()
+            else:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
+                optimizer.step()
+                
             optimizer.zero_grad()
             
         total_loss += loss.item() * grad_accum_steps

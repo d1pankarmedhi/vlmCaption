@@ -14,6 +14,7 @@ class Config:
     BATCH_SIZE = 16
     GRAD_ACCUM_STEPS = 1
     MAX_GRAD_NORM = 1.0
+    MIXED_PRECISION = 'fp16' # Options: 'no', 'fp16', 'bf16'
     SAVE_EVERY = 1
     
     # Checkpointing

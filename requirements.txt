@@ -5,3 +5,5 @@ pillow
 nltk
 tqdm
 numpy
+bitsandbytes
+accelerate
